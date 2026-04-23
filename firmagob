@@ -1,0 +1,82 @@
+#!/bin/bash
+
+# --- Valores por defecto (Sandbox) ---
+SECRET="27a216342c744f89b7b82fa290519ba0"
+TOKEN="sandbox"
+URL="https://api.firma.cert.digital.gob.cl/firma/v2/files/tickets"
+RUN="22222222"
+ENTIDAD="Subsecretaría General de la Presidencia"
+PROPOSITO="Desatendido"
+NOMBRE_F="FirmaGobierno"
+OTP=""
+ARCHIVO=""
+
+# --- Función de Ayuda ---
+show_help() {
+    echo "Uso: firmagob <archivo.pdf> [opciones]"
+    echo ""
+    echo "Descripción:"
+    echo "  Firma electrónicamente un documento PDF usando la API de FirmaGob."
+    echo ""
+    echo "Opciones:"
+    echo "  -s, --secret      Secret Key de la aplicación. (Inseguro, solo usar para test)"
+    echo "  -t, --token       API Token Key (ej: sandbox)."
+    echo "  -u, --url         URL de la API de firma."
+    echo "  -r, --run, --rut  RUN del firmante (sin puntos ni guion)."
+    echo "  -e, --entidad     Nombre de la institución/entidad."
+    echo "  -p, --proposito   Propósito de la firma (Desatendido/Propósito General)."
+    echo "  -o, --otp         Código OTP de 6 dígitos (activa modo Atendido)."
+    echo "  -h, --help        Muestra este menú de ayuda."
+    echo "  -n, --nombre      Nombre interno del campo de firma."
+    echo ""
+    echo "Ejemplo:"
+    echo "  firmagob documento.pdf -r 11111111 -o 123456"
+}
+
+# Si no hay argumentos o pide ayuda
+if [[ $# -eq 0 ]] || [[ "$1" == "help" ]] || [[ "$1" == "-h" ]] || [[ "$1" == "--help" ]]; then
+    show_help
+    exit 0
+fi
+
+# El primer argumento es siempre el archivo
+ARCHIVO=$(realpath "$1")
+shift
+
+# Procesar el resto de las banderas
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -s|--secret)    SECRET="$2"; shift 2 ;;
+        -t|--token)     TOKEN="$2";  shift 2 ;;
+        -u|--url)       URL="$2";    shift 2 ;;
+        -r|--run|--rut) RUN="$2";    shift 2 ;;
+        -e|--entidad)   ENTIDAD="$2"; shift 2 ;;
+        -p|--proposito) PROPOSITO="$2"; shift 2 ;;
+        -n|--nombre)    NOMBRE_F="$2"; shift 2 ;;
+        -o|--otp)       OTP="$2"; PROPOSITO="Propósito General"; shift 2 ;;
+        *) echo "Opción desconocida: $1"; exit 1 ;;
+    esac
+done
+
+# Validación de archivo
+if [ ! -f "$ARCHIVO" ]; then
+    echo "Error: El archivo '$ARCHIVO' no existe."
+    exit 1
+fi
+
+# --- Ejecución ---
+PROYECTO_JAVA="/workspaces/firmaGobTest/firma-java"
+export MAVEN_OPTS="--add-opens java.base/sun.nio.ch=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED"
+
+cd "$PROYECTO_JAVA" || exit 1
+
+mvn exec:java -q -Dexec.mainClass="FirmaInyector" \
+  -Df.secret="$SECRET" \
+  -Df.token="$TOKEN" \
+  -Df.url="$URL" \
+  -Df.run="$RUN" \
+  -Df.entidad="$ENTIDAD" \
+  -Df.proposito="$PROPOSITO" \
+  -Df.nombre="$NOMBRE_F" \
+  -Df.otp="$OTP" \
+  -Dexec.args="'$ARCHIVO'" 2>/dev/null
