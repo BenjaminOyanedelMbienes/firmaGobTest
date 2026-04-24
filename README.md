@@ -1,90 +1,75 @@
-# FIRMAGOB CLI
+# MANUAL DE USUARIO: FIRMAGOB CLI (MULTI-PLATAFORMA)
 
-FIRMAGOB CLI es una herramienta de línea de comandos diseñada para la firma electrónica de documentos PDF a través de la API de Firma.gob (Secretaría de Gobierno Digital de Chile). Permite realizar firmas en modalidades Desatendida y Atendida (OTP).
-
-# Requisitos previos
-
-    Java 17 o superior.
-
-    Apache Maven.
-
-    Credenciales de acceso a la API (Sandbox o Producción).
-
-# Configuración inicial
-
-Para facilitar el uso diario y evitar ingresar las credenciales en cada ejecución, se recomienda configurar las constantes directamente en el script de Bash.
-1. Configurar credenciales en el script
-
-    Abra el archivo /usr/local/bin/firmagob y localice la sección de valores por defecto. Reemplace los valores con sus credenciales permanentes:
+Esta herramienta permite firmar documentos PDF usando la API de Firma.gob.cl,
+agregando un estampado visual en la última página del documento.
 
 
-Se recomienda dejar configurados estos valores una sola vez
-SECRET="su_secret_key_aqui"
-TOKEN="su_api_token_key_aqui"
-URL="https://api.firma.cert.digital.gob.cl/firma/v2/files/tickets"
-ENTIDAD="Nombre de su Institución"
+## PERSONALIZACIÓN (IMPORTANTE)
 
-2. Preparar el núcleo Java
+Tanto el script de Linux (firmagob) como el de Windows (firmagob.bat) tienen 
+una sección llamada "CONFIGURACIÓN POR DEFECTO". 
 
-    Desde la carpeta del proyecto Java, compile los archivos necesarios:
+Para evitar escribir las llaves secretas en cada firma, abra el script con un 
+editor de texto y modifique las siguientes variables con sus datos reales:
 
-        mvn clean compile
-3. Asignar permisos de ejecución
+    - SECRET: Su Secret Key proporcionada por el gobierno.
+    - TOKEN: Su API Token Key.
+    - ENTIDAD: El nombre que aparecerá en el sello (ej: "Municipalidad de...").
 
-    Asegúrese de que el sistema pueda ejecutar el comando:
 
+
+##  INSTALACIÓN EN WINDOWS
+
+1. Compilación: Ejecute el siguiente comando en la carpeta del proyecto Java.
+
+        mvn clean package
+2. Carpeta de Scripts: Cree una carpeta como C:\Scripts y guarde ahí el 
+   archivo 'firmagob.bat'.
+3. JAR_PATH: Edite el archivo 'firmagob.bat' y asegúrese de que la variable 
+   JAR_PATH apunte a la ubicación real del archivo .jar generado.
+4. PATH: Agregue C:\Scripts a las Variables de Entorno de su sistema.
+
+
+
+## 3. INSTALACIÓN EN LINUX / CODESPACES
+
+1. Compilación: 
+        
+        mvn clean package
+2. Script: Guarde el código en /usr/local/bin/firmagob.
+3. Permisos: Ejecute 
 
         sudo chmod +x /usr/local/bin/firmagob
 
-# Uso del comando
 
-La sintaxis básica es:
 
-    firmagob <archivo.pdf> [opciones]
+## 4. COMANDOS Y BANDERAS
 
-# Banderas de comando (Flags)
+Sintaxis: firmagob <archivo.pdf> [opciones]
 
-Si los valores ya están definidos en el script de Bash, no es necesario usar estas banderas a menos que desee sobrescribirlos para una ejecución específica.
+Las banderas permiten sobrescribir cualquier configuración fija del script:
 
-    Opción            Descripción
+    -r, --rut        : RUN sin puntos ni guion (Obligatorio si no está fijo).
+    -o, --otp        : Código OTP (Activa firma atendida).
+    -l, --logo       : Ruta del archivo .png para el sello.
+    --reemplazar     : Modifica el archivo original en lugar de crear copia.
+    -s, --secret     : Sobrescribe la Secret Key (Uso bajo propio riesgo).
+    -t, --token      : Sobrescribe el API Token.
+    -e, --entidad    : Cambia el nombre de la institución en el sello.
+    -p, --proposito  : Cambia el propósito de la firma.
 
-    -r	--rut            RUN del firmante (sin puntos ni guion).
 
-    -o	--otp            Código OTP de 6 dígitos (Activa modo Atendido).
 
-    -s	--secret            Sobrescribe la Secret Key configurada.
+## 5. EJEMPLOS
 
-    -t	--token            Sobrescribe el API Token Key configurado.
+Uso estándar (Windows):
+    
+    firmagob mi_documento.pdf --rut 12345678 --reemplazar
 
-    -p	--proposito            Propósito de la firma (Desatendido/Propósito General).
+Uso con logo distinto:
+    
+    firmagob oficio.pdf -r 22222222 -l "C:\logos\logo_especial.png"
 
-    -e	--entidad            Sobrescribe el nombre de la entidad.
-
-    -n	--nombre            Define el nombre interno del campo de firma.
-
-    -h	--help            Muestra el menú de ayuda.
-
-# Ejemplos de uso
-## Firma Desatendida
-
-    Si ya configuró el script con su Secret y Token, solo necesita el nombre del archivo:
-
-firmagob documento.pdf
-
-# Firma Atendida (OTP)
-
-Para firmar usando el código de la aplicación móvil:
-
-    firmagob contrato.pdf --rut 11111111 --otp 123456
-
-    Firma con parámetros personalizados
-
-    firmagob oficio.pdf --rut 12345678 --proposito "Firma de Gabinete" --nombre "Firma_Especial"
-
-Notas adicionales
-
-Seguridad: Al configurar las llaves dentro del script de Bash, evite compartir el archivo o subirlo a repositorios públicos.
-
-Salida: El sistema genera automáticamente una copia del archivo con el sufijo _firmado.pdf en la misma ubicación del archivo original.
-
-Errores: En caso de recibir un Error 400 de la API, verifique que el RUT y el Propósito coincidan exactamente con lo registrado en su cuenta de Firma.gob.
+Uso en una entidad distinta (sobrescribiendo el default):
+    
+    firmagob doc.pdf -r 11111111 -e "Ministerio de Hacienda"

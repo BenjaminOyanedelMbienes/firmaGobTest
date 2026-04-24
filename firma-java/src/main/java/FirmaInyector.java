@@ -159,10 +159,8 @@ public class FirmaInyector {
         
         // Cargamos la imagen de forma segura con la ruta absoluta
         File logoF = new File(RUTA_LOGO).getAbsoluteFile();
-        System.out.println("ruta: " + RUTA_LOGO);
         appearance.setSignatureGraphic(ImageDataFactory.create(logoF.getAbsolutePath()));
         
-
         // Formateamos la fecha para que sea legible y asignamos el texto
         String fechaLegible = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
         String textoFirma = "Firmado por: " + RUN + "\nEntidad: " + ENTIDAD + "\nFecha: " + fechaLegible;
@@ -343,6 +341,15 @@ public class FirmaInyector {
             System.out.println("[ERROR CRÍTICO] LOGO NO ENCONTRADO.");
             System.out.println("   -> Java lo buscó en: " + logo.getAbsolutePath());
             System.out.println("   -> ¿Está el archivo ahí?");
+            System.exit(1);
+        }
+
+        String nombreLogo = logo.getName().toLowerCase();
+        if (!nombreLogo.endsWith(".png") && !nombreLogo.endsWith(".jpg") && !nombreLogo.endsWith(".jpeg")) {
+            System.out.println("[ERROR CRÍTICO] FORMATO DE LOGO NO SOPORTADO.");
+            System.out.println("   -> Archivo proporcionado: " + logo.getName());
+            System.out.println("   -> Por favor, utilice únicamente formatos de mapa de bits soportados (.png, .jpg, .jpeg).");
+            System.out.println("   -> Los formatos vectoriales (como .svg) requieren conversión previa.");
             System.exit(1);
         }
         
