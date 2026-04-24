@@ -1,1 +1,4 @@
 *.pdf
+!documento.pdf
+*png
+!firma.png

@@ -8,6 +8,7 @@ RUN="22222222"
 ENTIDAD="Subsecretaría General de la Presidencia"
 PROPOSITO="Desatendido"
 NOMBRE_F="FirmaGobierno"
+LOGO="$(pwd)/firma.png"
 OTP=""
 ARCHIVO=""
 
@@ -28,9 +29,11 @@ show_help() {
     echo "  -o, --otp         Código OTP de 6 dígitos (activa modo Atendido)."
     echo "  -h, --help        Muestra este menú de ayuda."
     echo "  -n, --nombre      Nombre interno del campo de firma."
+    echo "  -l, --logo <ruta>   Ruta del logo (PNG/SVG). Defecto: firma.png"
+    echo "  --reemplazar        Sobrescribe el archivo original."
     echo ""
     echo "Ejemplo:"
-    echo "  firmagob documento.pdf -r 11111111 -o 123456"
+    echo "  firmagob documento.pdf -r 11111111"
 }
 
 # Si no hay argumentos o pide ayuda
@@ -46,6 +49,8 @@ shift
 # Procesar el resto de las banderas
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -l|--logo)      LOGO="$2"; shift 2 ;;
+        --reemplazar)   REEMPLAZAR="true"; shift ;;
         -s|--secret)    SECRET="$2"; shift 2 ;;
         -t|--token)     TOKEN="$2";  shift 2 ;;
         -u|--url)       URL="$2";    shift 2 ;;
@@ -77,6 +82,8 @@ mvn exec:java -q -Dexec.mainClass="FirmaInyector" \
   -Df.run="$RUN" \
   -Df.entidad="$ENTIDAD" \
   -Df.proposito="$PROPOSITO" \
+  -Df.logo="$LOGO" \
+  -Df.reemplazar="$REEMPLAZAR" \
   -Df.nombre="$NOMBRE_F" \
   -Df.otp="$OTP" \
   -Dexec.args="'$ARCHIVO'" 2>/dev/null

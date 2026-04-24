@@ -7,6 +7,8 @@ import com.itextpdf.kernel.pdf.PdfName;
 import com.itextpdf.kernel.pdf.PdfDictionary;
 import com.itextpdf.kernel.pdf.PdfArray;
 import com.itextpdf.kernel.pdf.StampingProperties;
+import com.itextpdf.kernel.geom.Rectangle; // NUEVO: Para definir la posición física
+import com.itextpdf.io.image.ImageDataFactory; // NUEVO: Para cargar el logo
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -20,6 +22,8 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.time.Instant;
+import java.time.LocalTime; // NUEVO: Para el nombre del archivo
+import java.time.format.DateTimeFormatter; // NUEVO: Para el formato de hora
 import java.time.temporal.ChronoUnit;
 
 public class FirmaInyector {
@@ -32,10 +36,14 @@ public class FirmaInyector {
     private static String NOMBRE_FIRMA;
     private static String PROPOSITO;
     private static String valorOTP;
+    private static String RUTA_LOGO; // NUEVO: Ruta de la imagen
     private static boolean usaOTP = false;
+    private static boolean REEMPLAZAR = false; // NUEVO: Flag de reemplazo
 
     public static void main(String[] args) {
-        // Cargar configuraciones desde el sistema (vienen del Bash)
+        System.out.println("====== Iniciando proceso de firma ======");
+        System.out.println("Cargando configuraciones y validando archivos...");
+
         SECRET_KEY = System.getProperty("f.secret");
         API_TOKEN_KEY = System.getProperty("f.token");
         API_URL = System.getProperty("f.url");
@@ -45,79 +53,122 @@ public class FirmaInyector {
         valorOTP = System.getProperty("f.otp", "");
         NOMBRE_FIRMA = System.getProperty("f.nombre", "FirmaGobierno_" + System.currentTimeMillis());
         
-        // Si el otp no viene incluído se asume que es firma desatendida
+        RUTA_LOGO = System.getProperty("f.logo", "firma.png"); 
+        REEMPLAZAR = Boolean.parseBoolean(System.getProperty("f.reemplazar", "false"));
+
+        imprimirVariablesDeEntrada(args);
+        validarArchivos(args, RUTA_LOGO);
+
+        File logoFile = new File(RUTA_LOGO).getAbsoluteFile();
+        if (!logoFile.exists()) {
+            System.err.println("Error: El logo '" + logoFile.getAbsolutePath() + "' no existe.");
+            System.exit(1);
+        }
+
         if (valorOTP != null && !valorOTP.isEmpty()) {
             usaOTP = true;
         }
 
-        // Si no viene un archivo para firmar nos detenemos
         if (args.length < 1) {
             System.err.println("Uso: firmagob <archivo.pdf> [otp]");
             System.exit(1);
         }
 
-        // Convertimos a ruta absoluta para evitar problemas de directorios
         File archivoOriginal = new File(args[0]).getAbsoluteFile();
         if (!archivoOriginal.exists()) {
             System.err.println("Error: El archivo " + args[0] + " no existe.");
             System.exit(1);
         }
 
-        // Lógica para separar el nombre y la extensión original
         String nombreOriginal = archivoOriginal.getName();
         int dotIndex = nombreOriginal.lastIndexOf('.');
         String baseName = (dotIndex == -1) ? nombreOriginal : nombreOriginal.substring(0, dotIndex);
         String extension = (dotIndex == -1) ? "" : nombreOriginal.substring(dotIndex);
 
-        // Archivos resultantes y temporales
-        File archivoFirmado = new File(archivoOriginal.getParent(), baseName + "_firmado" + extension);
+        File archivoFirmado;
+        if (REEMPLAZAR) {
+            archivoFirmado = new File(archivoOriginal.getParent(), baseName + "_temp" + extension);
+        } else {
+            String timeStamp = LocalTime.now().format(DateTimeFormatter.ofPattern("HH_mm_ss"));
+            archivoFirmado = new File(archivoOriginal.getParent(), baseName + "_firmado_" + timeStamp + extension);
+        }
+        
         File tempAgujero = new File(archivoOriginal.getParent(), ".temp_hole_" + nombreOriginal);
 
         try {
-            System.out.println("-> Firmando: " + archivoOriginal.getName());
-            
-            // Le hacemos espacio al archivo para poner la firma
+            System.out.println("Analizando PDF y creando espacio visual para la firma...");
             crearAgujeroPdf(archivoOriginal.getAbsolutePath(), tempAgujero.getAbsolutePath(), NOMBRE_FIRMA);
 
-            // Lo hacheamos y lo dejamos en formato base64 y hex
+            System.out.println("Calculando la huella digital (Hash) del documento...");
             byte[] hashBytes = obtenerHashDelAgujero(tempAgujero.getAbsolutePath(), NOMBRE_FIRMA);
             String hashHex = bytesToHex(hashBytes);
             String hashBase64 = Base64.getEncoder().encodeToString(hashBytes);
             
-            // Generamos el token jwt y solicitamos la firma a firma digital mandando el hash con ambos formatos y el token
+            System.out.println("Generando Token y solicitando firma a Firma.gob...");
             String jwtToken = generarToken();
             String p7sBase64 = solicitarFirmaAPI(jwtToken, hashHex, hashBase64);
 
-            // Si es que llegó una firma la inyectamos en el documento nuevo _firmado
             if (p7sBase64 != null) {
-                // Inyectamos la firma directamente en el archivo final "_firmado"
+                System.out.println("Respuesta recibida. Inyectando firma criptográfica en el PDF...");
                 inyectarP7S(tempAgujero.getAbsolutePath(), archivoFirmado.getAbsolutePath(), NOMBRE_FIRMA, p7sBase64);
                 
-                System.out.println("Documento firmado con éxito: " + archivoFirmado.getAbsolutePath());
+                if (REEMPLAZAR) {
+                    Files.move(archivoFirmado.toPath(), archivoOriginal.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    System.out.println("[ÉXITO] Documento firmado y reemplazado: " + archivoOriginal.getAbsolutePath());
+                } else {
+                    System.out.println("[ÉXITO] Documento firmado guardado como: " + archivoFirmado.getAbsolutePath());
+                }
+            } else {
+                System.out.println("[ERROR] La firma devuelta por la API es null.");
             }
-            else 
-                System.out.println("La firma devuelta es null.");
 
         } catch (Exception e) {
-            // Bastante autodescriptivo
-            System.err.println("Error crítico: " + e.getMessage());
+            System.err.println("[ERROR CRÍTICO] " + e.getMessage());
+            e.printStackTrace(); // Opcional: Imprime el error exacto si vuelve a fallar
         } finally {
-            // Limpiar solo la basura (el archivo con el agujero)
+            System.out.println("Limpiando archivos temporales de trabajo.");
             if (tempAgujero.exists()) tempAgujero.delete();
+            System.out.println("====== Proceso terminado ======");
         }
     }
 
     // --- MÉTODOS DE APOYO ---
 
     public static void crearAgujeroPdf(String src, String dest, String fieldName) throws Exception {
-        // Declaramos el lector y el firmador
         PdfReader reader = new PdfReader(src);
+        
+        PdfDocument docRef = new PdfDocument(new PdfReader(src));
+        int ultimaPagina = docRef.getNumberOfPages();
+        docRef.close();
+
         PdfSigner signer = new PdfSigner(reader, new FileOutputStream(dest), new StampingProperties().useAppendMode());
 
-        // Pone el nombre de la firma
+        // Configuramos el nombre del campo interno
         signer.setFieldName(fieldName);
 
-        //Hace el espacio necesario para la firma
+        // Obtenemos el controlador visual de la firma
+        PdfSignatureAppearance appearance = signer.getSignatureAppearance();
+        
+        // Definimos la posición y página
+        Rectangle rect = new Rectangle(36, 36, 200, 80);
+        appearance.setPageRect(rect);
+        appearance.setPageNumber(ultimaPagina);
+        
+        // Establecemos que queremos Logo + Texto
+        appearance.setRenderingMode(PdfSignatureAppearance.RenderingMode.GRAPHIC_AND_DESCRIPTION);
+        
+        // Cargamos la imagen de forma segura con la ruta absoluta
+        File logoF = new File(RUTA_LOGO).getAbsoluteFile();
+        System.out.println("ruta: " + RUTA_LOGO);
+        appearance.setSignatureGraphic(ImageDataFactory.create(logoF.getAbsolutePath()));
+        
+
+        // Formateamos la fecha para que sea legible y asignamos el texto
+        String fechaLegible = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+        String textoFirma = "Firmado por: " + RUN + "\nEntidad: " + ENTIDAD + "\nFecha: " + fechaLegible;
+        appearance.setLayer2Text(textoFirma);
+
+        // Hace el espacio necesario para la firma criptográfica (agujero)
         IExternalSignatureContainer blank = new ExternalBlankSignatureContainer(PdfName.Adobe_PPKLite, PdfName.Adbe_pkcs7_detached);
         signer.signExternalContainer(blank, 8192);
     }
@@ -237,5 +288,64 @@ public class FirmaInyector {
         public ExternalSignatureContainer(byte[] sig) { this.sig = sig; }
         @Override public byte[] sign(InputStream data) { return sig; }
         @Override public void modifySigningDictionary(PdfDictionary signDic) {}
+    }
+
+
+    // --- NUEVAS FUNCIONES DE DEBUG Y VALIDACIÓN ---
+
+    private static void imprimirVariablesDeEntrada(String[] args) {
+        System.out.println("\n=== RADIOGRAFÍA DE VARIABLES ===");
+        // Esto te dirá exactamente dónde está parado Java
+        System.out.println("DIRECTORIO TRABAJO : [" + System.getProperty("user.dir") + "]");
+        System.out.println("Archivo PDF (args) : [" + (args.length > 0 ? args[0] : "VACÍO") + "]");
+        
+        // Calculamos la ruta que Java intentará usar para el logo
+        File logoFile = new File(RUTA_LOGO).getAbsoluteFile();
+        System.out.println("RUTA_LOGO (Texto)  : [" + RUTA_LOGO + "]");
+        System.out.println("RUTA_LOGO (Final)  : [" + logoFile.getAbsolutePath() + "]");
+        
+        System.out.println("REEMPLAZAR         : [" + REEMPLAZAR + "]");
+        System.out.println("RUN                : [" + RUN + "]");
+        System.out.println("ENTIDAD            : [" + ENTIDAD + "]");
+        System.out.println("PROPOSITO          : [" + PROPOSITO + "]");
+        System.out.println("USA OTP            : [" + usaOTP + "] (Valor: [" + valorOTP + "])");
+        System.out.println("API_URL            : [" + API_URL + "]");
+        System.out.println("API_TOKEN_KEY      : [" + API_TOKEN_KEY + "]");
+        
+        String secretPrint = (SECRET_KEY != null && SECRET_KEY.length() > 4) 
+                ? SECRET_KEY.substring(0, 4) + "..." : "VACÍO O MUY CORTO";
+        System.out.println("SECRET_KEY         : [" + secretPrint + "]");
+        System.out.println("NOMBRE_FIRMA       : [" + NOMBRE_FIRMA + "]");
+        System.out.println("================================\n");
+    }
+
+    private static void validarArchivos(String[] args, String rutaLogo) {
+        System.out.println("Validando existencia física de archivos...");
+        
+        // Validación de PDF
+        if (args.length < 1 || args[0] == null || args[0].trim().isEmpty()) {
+            System.out.println("[ERROR CRÍTICO] No se especificó el archivo PDF.");
+            System.exit(1);
+        }
+        File pdf = new File(args[0]).getAbsoluteFile();
+        if (!pdf.exists()) {
+            System.out.println("[ERROR CRÍTICO] PDF NO ENCONTRADO en: " + pdf.getAbsolutePath());
+            System.exit(1);
+        }
+
+        // Validación de Logo
+        if (rutaLogo == null || rutaLogo.trim().isEmpty()) {
+            System.out.println("[ERROR CRÍTICO] La variable LOGO llegó vacía.");
+            System.exit(1);
+        }
+        File logo = new File(rutaLogo).getAbsoluteFile();
+        if (!logo.exists()) {
+            System.out.println("[ERROR CRÍTICO] LOGO NO ENCONTRADO.");
+            System.out.println("   -> Java lo buscó en: " + logo.getAbsolutePath());
+            System.out.println("   -> ¿Está el archivo ahí?");
+            System.exit(1);
+        }
+        
+        System.out.println(" -> Archivos verificados con éxito.");
     }
 }
