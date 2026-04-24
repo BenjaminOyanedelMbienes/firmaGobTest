@@ -1,4 +1,4 @@
-# MANUAL DE USUARIO: FIRMAGOB CLI (MULTI-PLATAFORMA)
+# FIRMAGOB CLI
 
 Esta herramienta permite firmar documentos PDF usando la API de Firma.gob.cl,
 agregando un estampado visual en la última página del documento.
