@@ -46,23 +46,23 @@ La sintaxis básica es:
 
 Si los valores ya están definidos en el script de Bash, no es necesario usar estas banderas a menos que desee sobrescribirlos para una ejecución específica.
 
-    Opción                  Descripción
+    Opción            Descripción
 
-    -r	--rut	        RUN del firmante (sin puntos ni guion).
+    -r	--rut            RUN del firmante (sin puntos ni guion).
 
-    -o	--otp	        Código OTP de 6 dígitos (Activa modo Atendido).
+    -o	--otp            Código OTP de 6 dígitos (Activa modo Atendido).
 
-    -s	--secret	Sobrescribe la Secret Key configurada.
+    -s	--secret            Sobrescribe la Secret Key configurada.
 
-    -t	--token	        Sobrescribe el API Token Key configurado.
+    -t	--token            Sobrescribe el API Token Key configurado.
 
-    -p	--proposito	Propósito de la firma (Desatendido/Propósito General).
+    -p	--proposito            Propósito de la firma (Desatendido/Propósito General).
 
-    -e	--entidad	Sobrescribe el nombre de la entidad.
+    -e	--entidad            Sobrescribe el nombre de la entidad.
 
-    -n	--nombre	Define el nombre interno del campo de firma.
+    -n	--nombre            Define el nombre interno del campo de firma.
 
-    -h	--help	        Muestra el menú de ayuda.
+    -h	--help            Muestra el menú de ayuda.
 
 # Ejemplos de uso
 ## Firma Desatendida
