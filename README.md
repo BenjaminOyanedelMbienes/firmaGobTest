@@ -17,6 +17,7 @@ editor de texto y modifique las siguientes variables con sus datos reales:
     - ENTIDAD: El nombre que aparecerá en el sello (ej: "Municipalidad de...").
 
 
+---
 
 ##  INSTALACIÓN EN WINDOWS
 
